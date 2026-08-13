@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Canonical registry for one {@link CustomEnum} family.
@@ -45,6 +46,38 @@ public final class CustomEnumRegistry<T extends CustomEnum<T>> {
 
         values.put(id, value);
         return value;
+    }
+
+    /**
+     * Returns the canonical value for {@code id}, defining it atomically when it has not been
+     * seen before. Existing migration aliases resolve to their canonical object and never invoke
+     * the factory.
+     *
+     * <p>The factory must create a value whose stable identifier exactly matches {@code id}.
+     * This is intended for descriptor/plugin/module discovery where the set of valid values is
+     * extensible but every internal caller should still receive one canonical typed object.</p>
+     */
+    public synchronized T getOrRegister(String id, Function<String, ? extends T> factory) {
+        String checkedId = CustomEnum.requireIdentifier(id, "id");
+        Objects.requireNonNull(factory, "factory");
+
+        T existing = values.get(checkedId);
+        if (existing == null) {
+            existing = aliases.get(checkedId);
+        }
+        if (existing != null) {
+            return existing;
+        }
+
+        ensureMutable();
+        T created = Objects.requireNonNull(factory.apply(checkedId), "factory result");
+        if (!checkedId.equals(created.id())) {
+            throw new IllegalArgumentException(
+                    "Factory created " + typeName + " identifier '" + created.id()
+                            + "' for requested identifier '" + checkedId + "'");
+        }
+        values.put(checkedId, created);
+        return created;
     }
 
     /**

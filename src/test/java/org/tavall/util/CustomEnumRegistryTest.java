@@ -3,6 +3,7 @@ package org.tavall.util;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -24,6 +25,58 @@ class CustomEnumRegistryTest {
         assertEquals(List.of("first", "second"), registry.ids().stream().toList());
         assertEquals("first", first.id());
         assertEquals("first", first.toString());
+    }
+
+    @Test
+    void getOrRegisterCanonicalizesDescriptorDefinedValues() {
+        CustomEnumRegistry<TestValue> registry = CustomEnumRegistry.create("module-id");
+        AtomicInteger factoryCalls = new AtomicInteger();
+
+        TestValue first = registry.getOrRegister("tavall-ffa", id -> {
+            factoryCalls.incrementAndGet();
+            return new TestValue(id);
+        });
+        TestValue second = registry.getOrRegister("tavall-ffa", id -> {
+            factoryCalls.incrementAndGet();
+            return new TestValue(id);
+        });
+
+        assertSame(first, second);
+        assertEquals(1, factoryCalls.get());
+        assertEquals(List.of(first), registry.values());
+    }
+
+    @Test
+    void getOrRegisterResolvesAliasesBeforeCreatingValues() {
+        CustomEnumRegistry<TestValue> registry = CustomEnumRegistry.create("module-id");
+        TestValue canonical = registry.register(new TestValue("tavall-ffa"));
+        registry.registerAlias("novus-ffa", canonical);
+
+        TestValue resolved = registry.getOrRegister("novus-ffa", id -> {
+            throw new AssertionError("factory must not run for an alias");
+        });
+
+        assertSame(canonical, resolved);
+    }
+
+    @Test
+    void getOrRegisterRequiresFactoryIdentityToMatchRequestedId() {
+        CustomEnumRegistry<TestValue> registry = CustomEnumRegistry.create("module-id");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> registry.getOrRegister("tavall-ffa", ignored -> new TestValue("different")));
+        assertFalse(registry.find("tavall-ffa").isPresent());
+    }
+
+    @Test
+    void frozenRegistryStillResolvesExistingValuesButRejectsNewOnes() {
+        CustomEnumRegistry<TestValue> registry = CustomEnumRegistry.create("module-id");
+        TestValue canonical = registry.register(new TestValue("tavall-ffa"));
+        registry.freeze();
+
+        assertSame(canonical, registry.getOrRegister("tavall-ffa", TestValue::new));
+        assertThrows(IllegalStateException.class,
+                () -> registry.getOrRegister("tavall-lobby", TestValue::new));
     }
 
     @Test
