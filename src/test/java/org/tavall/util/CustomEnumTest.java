@@ -12,39 +12,52 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class CustomEnumTest {
 
     @Test
-    void registeredValuesBehaveLikeEnumConstants() {
-        assertSame(ThreadType.MAIN, CustomEnum.valueOf(ThreadType.class, "MAIN"));
-        assertSame(ThreadType.AI, CustomEnum.valueOf(ThreadType.class, "AI"));
-        assertEquals(List.of(ThreadType.MAIN, ThreadType.AI, ThreadType.WORKER),
-                CustomEnum.values(ThreadType.class));
-
-        assertEquals("MAIN", ThreadType.MAIN.name());
-        assertEquals(0, ThreadType.MAIN.ordinal());
-        assertEquals(1, ThreadType.AI.ordinal());
-        assertEquals(2, ThreadType.WORKER.ordinal());
-        assertEquals("AI", ThreadType.AI.toString());
+    void valuesMayBeRegisteredOutsideTheEnumFamily() {
+        assertSame(DatabaseThreadTypes.DATABASE,
+                CustomEnum.valueOf(ThreadType.class, "DATABASE"));
+        assertSame(AiThreadTypes.AI,
+                CustomEnum.valueOf(ThreadType.class, "AI"));
     }
 
     @Test
-    void valuesLookupInitializesTheConcreteType() {
-        assertEquals(List.of(LazyType.FIRST, LazyType.SECOND), CustomEnum.values(LazyType.class));
-        assertSame(LazyType.SECOND, CustomEnum.valueOf(LazyType.class, "SECOND"));
+    void repeatedRegistrationReturnsTheCanonicalValue() {
+        CanonicalType first = CanonicalType.register("SHARED");
+        CanonicalType second = CanonicalType.register("SHARED");
+
+        assertSame(first, second);
+        assertEquals(1, CanonicalType.constructions());
+        assertSame(first, CustomEnum.valueOf(CanonicalType.class, "SHARED"));
     }
 
     @Test
-    void duplicateNamesWithinOneTypeFailImmediately() {
-        assertThrows(IllegalArgumentException.class, () -> DuplicateType.registerDuplicate("ONE"));
+    void separateContributorsConvergeOnTheSameValue() {
+        assertSame(DatabaseThreadTypes.DATABASE, PersistenceThreadTypes.DATABASE);
+    }
+
+    @Test
+    void valuesReflectRegistrationOrder() {
+        ValueOrderType first = ValueOrderType.register("FIRST");
+        ValueOrderType second = ValueOrderType.register("SECOND");
+        ValueOrderType third = ValueOrderType.register("THIRD");
+
+        assertEquals(List.of(first, second, third), CustomEnum.values(ValueOrderType.class));
     }
 
     @Test
     void differentTypesMayUseTheSameNameWithoutBecomingEqual() {
-        assertEquals("AI", ThreadType.AI.name());
-        assertEquals("AI", DatabaseType.AI.name());
-        assertNotEquals(ThreadType.AI, DatabaseType.AI);
+        ThreadType threadType = ThreadType.register("DATABASE");
+        DatabaseType databaseType = DatabaseType.register("DATABASE");
+
+        assertEquals("DATABASE", threadType.name());
+        assertEquals("DATABASE", databaseType.name());
+        assertNotEquals(threadType, databaseType);
     }
 
     @Test
     void lookupIsExact() {
+        ThreadType ai = ThreadType.register("AI");
+
+        assertSame(ai, CustomEnum.valueOf(ThreadType.class, "AI"));
         assertThrows(IllegalArgumentException.class,
                 () -> CustomEnum.valueOf(ThreadType.class, "ai"));
         assertThrows(IllegalArgumentException.class,
@@ -53,86 +66,116 @@ class CustomEnumTest {
 
     @Test
     void namesRejectNullBlankAndPaddedValues() {
-        assertThrows(NullPointerException.class, () -> InvalidType.create(null));
-        assertThrows(IllegalArgumentException.class, () -> InvalidType.create(""));
-        assertThrows(IllegalArgumentException.class, () -> InvalidType.create("   "));
-        assertThrows(IllegalArgumentException.class, () -> InvalidType.create(" AI"));
-        assertThrows(IllegalArgumentException.class, () -> InvalidType.create("AI "));
+        assertThrows(NullPointerException.class, () -> ThreadType.register(null));
+        assertThrows(IllegalArgumentException.class, () -> ThreadType.register(""));
+        assertThrows(IllegalArgumentException.class, () -> ThreadType.register("   "));
+        assertThrows(IllegalArgumentException.class, () -> ThreadType.register(" AI"));
+        assertThrows(IllegalArgumentException.class, () -> ThreadType.register("AI "));
     }
 
     @Test
     void valuesSnapshotIsImmutable() {
-        List<ThreadType> values = CustomEnum.values(ThreadType.class);
-        assertThrows(UnsupportedOperationException.class, () -> values.add(ThreadType.AI));
+        ImmutableType value = ImmutableType.register("VALUE");
+        List<ImmutableType> values = CustomEnum.values(ImmutableType.class);
+
+        assertEquals(List.of(value), values);
+        assertThrows(UnsupportedOperationException.class, () -> values.add(value));
+    }
+
+    @Test
+    void registeredValuesExposeTheirNameAndUseIdentityEquality() {
+        ThreadType first = ThreadType.register("WORKER");
+        ThreadType second = ThreadType.register("WORKER");
+
+        assertEquals("WORKER", first.name());
+        assertEquals("WORKER", first.toString());
+        assertSame(first, second);
+        assertEquals(first.hashCode(), second.hashCode());
     }
 }
 
 final class ThreadType extends CustomEnum<ThreadType> {
 
-    static final ThreadType MAIN = register("MAIN");
-    static final ThreadType AI = register("AI");
-    static final ThreadType WORKER = register("WORKER");
-
     private ThreadType(String name) {
         super(name);
     }
 
-    private static ThreadType register(String name) {
-        return CustomEnum.register(new ThreadType(name));
+    static ThreadType register(String name) {
+        return CustomEnum.register(ThreadType.class, name, ThreadType::new);
+    }
+}
+
+final class DatabaseThreadTypes {
+
+    static final ThreadType DATABASE = ThreadType.register("DATABASE");
+
+    private DatabaseThreadTypes() {
+    }
+}
+
+final class PersistenceThreadTypes {
+
+    static final ThreadType DATABASE = ThreadType.register("DATABASE");
+
+    private PersistenceThreadTypes() {
+    }
+}
+
+final class AiThreadTypes {
+
+    static final ThreadType AI = ThreadType.register("AI");
+
+    private AiThreadTypes() {
     }
 }
 
 final class DatabaseType extends CustomEnum<DatabaseType> {
 
-    static final DatabaseType AI = register("AI");
-
     private DatabaseType(String name) {
         super(name);
     }
 
-    private static DatabaseType register(String name) {
-        return CustomEnum.register(new DatabaseType(name));
+    static DatabaseType register(String name) {
+        return CustomEnum.register(DatabaseType.class, name, DatabaseType::new);
     }
 }
 
-final class LazyType extends CustomEnum<LazyType> {
+final class CanonicalType extends CustomEnum<CanonicalType> {
 
-    static final LazyType FIRST = register("FIRST");
-    static final LazyType SECOND = register("SECOND");
+    private static int constructions;
 
-    private LazyType(String name) {
+    private CanonicalType(String name) {
         super(name);
+        constructions++;
     }
 
-    private static LazyType register(String name) {
-        return CustomEnum.register(new LazyType(name));
+    static CanonicalType register(String name) {
+        return CustomEnum.register(CanonicalType.class, name, CanonicalType::new);
+    }
+
+    static int constructions() {
+        return constructions;
     }
 }
 
-final class DuplicateType extends CustomEnum<DuplicateType> {
+final class ValueOrderType extends CustomEnum<ValueOrderType> {
 
-    static final DuplicateType ONE = register("ONE");
-
-    private DuplicateType(String name) {
+    private ValueOrderType(String name) {
         super(name);
     }
 
-    static DuplicateType registerDuplicate(String name) {
-        return CustomEnum.register(new DuplicateType(name));
-    }
-
-    private static DuplicateType register(String name) {
-        return CustomEnum.register(new DuplicateType(name));
+    static ValueOrderType register(String name) {
+        return CustomEnum.register(ValueOrderType.class, name, ValueOrderType::new);
     }
 }
 
-final class InvalidType extends CustomEnum<InvalidType> {
+final class ImmutableType extends CustomEnum<ImmutableType> {
 
-    private InvalidType(String name) {
+    private ImmutableType(String name) {
         super(name);
     }
 
-    static InvalidType create(String name) {
-        return new InvalidType(name);
+    static ImmutableType register(String name) {
+        return CustomEnum.register(ImmutableType.class, name, ImmutableType::new);
     }
 }
