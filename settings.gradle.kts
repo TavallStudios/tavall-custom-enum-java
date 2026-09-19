@@ -5,4 +5,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "tavall-java-utils"
+rootProject.name = "tavall-custom-enum-java"

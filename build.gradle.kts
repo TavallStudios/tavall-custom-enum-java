@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "org.tavall"
-extra["versionTagPrefix"] = "tavall-java-utils"
+extra["versionTagPrefix"] = "tavall-custom-enum-java"
 apply(from = "gradle/git-version.gradle.kts")
 version = extra["gitVersion"] as String
 
@@ -40,7 +40,7 @@ publishing {
     publications {
         create<MavenPublication>("mavenJava") {
             from(components["java"])
-            artifactId = "tavall-java-utils"
+            artifactId = "tavall-custom-enum-java"
         }
     }
     repositories {
@@ -48,7 +48,7 @@ publishing {
         if (token.isPresent) {
             maven {
                 name = "GitHubPackages"
-                url = uri("https://maven.pkg.github.com/TavallStudios/tavall-java-utils")
+                url = uri("https://maven.pkg.github.com/TavallStudios/tavall-custom-enum-java")
                 credentials {
                     username = providers.environmentVariable("GITHUB_ACTOR").orNull
                     password = token.get()
