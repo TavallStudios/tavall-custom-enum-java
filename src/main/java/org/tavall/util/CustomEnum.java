@@ -4,13 +4,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
- * Base type for strongly typed, enum-like values declared with ordinary Java classes.
+ * Base type for strongly typed, dynamically extensible enum-like values.
  *
- * <p>Each concrete subclass declares its values once by calling {@link #register(CustomEnum)}.
- * Registered values are unique by name within their concrete type, preserve declaration order,
- * expose enum-style names and ordinals, and use identity equality just like Java enums.</p>
+ * <p>Concrete subclasses define an enum family and bind construction once. Values may then be
+ * registered from any consumer class. Re-registering the same name for the same family returns
+ * the canonical existing value.</p>
  *
  * @param <T> concrete custom-enum type
  */
@@ -19,58 +20,42 @@ public abstract class CustomEnum<T extends CustomEnum<T>> {
     private static final Map<Class<?>, EnumValues<?>> VALUES = new ConcurrentHashMap<>();
 
     private final String name;
-    private int ordinal = -1;
 
     protected CustomEnum(String name) {
         this.name = requireName(name);
     }
 
-    /** Returns the declared name of this value. */
+    /** Returns the registered name of this value. */
     public final String name() {
         return name;
     }
 
-    /** Returns the declaration-order ordinal of this value. */
-    public final int ordinal() {
-        if (ordinal < 0) {
-            throw new IllegalStateException("Custom enum value is not registered: " + name);
-        }
-        return ordinal;
-    }
-
     /**
-     * Registers one value for its concrete custom-enum type and returns that same instance.
-     * Duplicate names within the same type are rejected immediately.
+     * Returns the canonical value for {@code name}, creating and registering it when absent.
+     *
+     * <p>This method is intended to be exposed by each concrete family through its one
+     * type-specific registration method.</p>
      */
-    protected static <T extends CustomEnum<T>> T register(T value) {
-        Objects.requireNonNull(value, "value");
-
-        @SuppressWarnings("unchecked")
-        Class<T> type = (Class<T>) value.getClass();
-
-        return valuesFor(type).register(value);
+    protected static <T extends CustomEnum<T>> T register(
+            Class<T> type,
+            String name,
+            Function<String, T> factory) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(factory, "factory");
+        String checkedName = requireName(name);
+        return valuesFor(type).getOrRegister(checkedName, factory);
     }
 
     /** Returns the registered value named {@code name} for {@code type}. */
     public static <T extends CustomEnum<T>> T valueOf(Class<T> type, String name) {
         Objects.requireNonNull(type, "type");
-        Objects.requireNonNull(name, "name");
-        ensureInitialized(type);
-        return valuesFor(type).valueOf(name);
+        return valuesFor(type).valueOf(requireName(name));
     }
 
-    /** Returns the registered values for {@code type} in declaration order. */
+    /** Returns an immutable snapshot of the values currently registered for {@code type}. */
     public static <T extends CustomEnum<T>> List<T> values(Class<T> type) {
         Objects.requireNonNull(type, "type");
-        ensureInitialized(type);
         return valuesFor(type).values();
-    }
-
-    final void assignOrdinal(int ordinal) {
-        if (this.ordinal >= 0) {
-            throw new IllegalStateException("Custom enum value is already registered: " + name);
-        }
-        this.ordinal = ordinal;
     }
 
     @Override
@@ -102,13 +87,5 @@ public abstract class CustomEnum<T extends CustomEnum<T>> {
     @SuppressWarnings("unchecked")
     private static <T extends CustomEnum<T>> EnumValues<T> valuesFor(Class<T> type) {
         return (EnumValues<T>) VALUES.computeIfAbsent(type, ignored -> new EnumValues<>(type));
-    }
-
-    private static void ensureInitialized(Class<?> type) {
-        try {
-            Class.forName(type.getName(), true, type.getClassLoader());
-        } catch (ClassNotFoundException exception) {
-            throw new IllegalStateException("Unable to initialize custom enum type: " + type.getName(), exception);
-        }
     }
 }
