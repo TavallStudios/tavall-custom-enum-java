@@ -1,71 +1,77 @@
-# Tavall Java Utils
+# Tavall Custom Enum Java
 
-Low-level, dependency-light Java utility primitives shared across Tavall projects.
+A small, dependency-light Java utility for defining strongly typed enum-like values with ordinary classes.
 
-The repository is part of the Tavall Java Tools family but remains independently consumable and versioned. Utilities belong here only when they are broadly useful Java primitives with no stronger domain owner such as concurrency, reflection, DI, caching, logging, or persistence.
+`CustomEnum` is intentionally low level. A custom enum declares its values once in its own class, then consumers use those typed constants exactly as they would use a normal Java enum.
 
-## CustomEnum
+## Usage
 
-`CustomEnum` provides strongly typed, extensible domain identifiers for places where a Java `enum` is too closed but raw strings are too weak.
-
-A custom-enum family declares one concrete type and its well-known values:
+Define the enum type and register its values once:
 
 ```java
-public final class ModuleProfile extends CustomEnum<ModuleProfile> {
-    private static final CustomEnumRegistry<ModuleProfile> VALUES =
-            CustomEnumRegistry.create("module-profile");
+import org.tavall.util.CustomEnum;
 
-    public static final ModuleProfile KINGDOM = define("kingdom");
-    public static final ModuleProfile FFA = define("ffa");
-    public static final ModuleProfile LOBBY = define("lobby");
+public final class ThreadType extends CustomEnum<ThreadType> {
 
-    private ModuleProfile(String id) {
-        super(id);
+    public static final ThreadType MAIN = register("MAIN");
+    public static final ThreadType AI = register("AI");
+    public static final ThreadType WORKER = register("WORKER");
+
+    private ThreadType(String name) {
+        super(name);
     }
 
-    public static ModuleProfile define(String id) {
-        return VALUES.register(new ModuleProfile(id));
-    }
-
-    public static ModuleProfile fromId(String id) {
-        return VALUES.require(id);
+    private static ThreadType register(String name) {
+        return CustomEnum.register(new ThreadType(name));
     }
 }
 ```
 
-Consumers then carry `ModuleProfile` instead of remembering magic strings:
+Use it elsewhere just like an enum:
 
 ```java
-ModuleProfile id();
+ThreadType type = ThreadType.AI;
+
+void createThread(ThreadType type) {
+    // ...
+}
+
+createThread(ThreadType.WORKER);
 ```
 
-Extension modules may register additional values during bootstrap through the family-owned `define(...)` method. Once discovery is complete, the family can freeze its registry so late registrations fail rather than silently changing runtime behavior.
-
-### Migration aliases
-
-Aliases let old serialized/configured identifiers resolve to the new canonical value without preserving the old identity in production code:
+Java's normal type system keeps different custom-enum families separate:
 
 ```java
-ModuleId tavallFfa = ModuleId.define("tavall-ffa");
-ModuleId.registry().registerAlias("novus-ffa", tavallFfa);
+DatabaseType databaseType = DatabaseType.POSTGRES;
+
+createThread(databaseType); // does not compile
 ```
 
-A lookup of `novus-ffa` returns the canonical `tavall-ffa` object. The canonical object's `id()` never changes.
+### Enum-style operations
 
-### Deliberate constraints
+Each registered value exposes its declared name and declaration-order ordinal:
 
-- A value is strongly typed by its concrete custom-enum family.
-- Registries reject duplicate canonical IDs and aliases immediately.
-- Aliases must point at the exact canonical object already owned by that registry.
-- IDs are exact. The library does not silently lowercase, trim, or otherwise normalize wire/config values.
-- There are no ordinal semantics because extension registration order is not a stable domain contract.
-- Parsing strings belongs at configuration, serialization, command, or network boundaries. Internal APIs should pass the typed value.
-- `CustomEnum` is not DI and does not discover classes or modules. A domain owns its registry and extension policy.
+```java
+ThreadType.AI.name();    // "AI"
+ThreadType.AI.ordinal(); // 1
+ThreadType.AI.toString();// "AI"
+```
+
+Values can be looked up or enumerated through `CustomEnum`:
+
+```java
+ThreadType ai = CustomEnum.valueOf(ThreadType.class, "AI");
+List<ThreadType> values = CustomEnum.values(ThreadType.class);
+```
+
+`valueOf(...)` is exact and throws for unknown names. `values(...)` returns an immutable snapshot in declaration order.
+
+Like Java enums, registered custom-enum values use identity equality. A duplicate name within the same custom-enum type is rejected during registration.
 
 ## Coordinates
 
 ```text
-org.tavall:tavall-java-utils
+org.tavall:tavall-custom-enum-java
 ```
 
 ## Build
