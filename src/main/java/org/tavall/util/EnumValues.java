@@ -1,32 +1,40 @@
 package org.tavall.util;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 
-/** Internal value storage for one concrete {@link CustomEnum} type. */
+/** Internal canonical value storage for one concrete {@link CustomEnum} family. */
 final class EnumValues<T extends CustomEnum<T>> {
 
     private final Class<T> type;
     private final Map<String, T> byName = new LinkedHashMap<>();
-    private final List<T> ordered = new ArrayList<>();
 
     EnumValues(Class<T> type) {
         this.type = type;
     }
 
-    synchronized T register(T value) {
-        String name = value.name();
-        if (byName.containsKey(name)) {
-            throw new IllegalArgumentException(
-                    "Duplicate " + type.getSimpleName() + " value: " + name);
+    synchronized T getOrRegister(String name, Function<String, T> factory) {
+        T existing = byName.get(name);
+        if (existing != null) {
+            return existing;
         }
 
-        value.assignOrdinal(ordered.size());
-        byName.put(name, value);
-        ordered.add(value);
-        return value;
+        T created = Objects.requireNonNull(factory.apply(name), "factory returned null");
+        if (!type.isInstance(created)) {
+            throw new IllegalArgumentException(
+                    "Factory did not create a " + type.getSimpleName() + " value");
+        }
+        if (!name.equals(created.name())) {
+            throw new IllegalArgumentException(
+                    "Factory created " + type.getSimpleName() + " value named "
+                            + created.name() + " for requested name " + name);
+        }
+
+        byName.put(name, created);
+        return created;
     }
 
     synchronized T valueOf(String name) {
@@ -39,6 +47,6 @@ final class EnumValues<T extends CustomEnum<T>> {
     }
 
     synchronized List<T> values() {
-        return List.copyOf(ordered);
+        return List.copyOf(byName.values());
     }
 }
