@@ -4,6 +4,32 @@ A small, dependency-light Java utility for defining strongly typed, dynamically 
 
 `CustomEnum` is intentionally low level. A concrete custom-enum class defines one type-safe enum family and binds construction once. Values can then be registered from any consumer class without modifying the enum-family class itself.
 
+## Responsibility
+
+**Owns:** The low-level `CustomEnum` and `EnumValues` library for typed, dynamically registered enum-like values.
+
+**Does not own:** Consumer enum families, consumer-specific registrations, or application runtime behavior.
+
+## Module boundary
+
+- `tavall-custom-enum-java/` (Gradle project `:`) — **← This Module**
+
+**Relationships:** Java applications and Tavall Java Tools consumers depend on the published `org.tavall:tavall-custom-enum-java` library. The library owns only its generic registration and lookup support.
+
+**Governing documentation:** [Usage](#usage), [Structure](#structure), [Build](#build), [staging guidance](.github/TAVALL_STAGING.md), and [library build configuration](build.gradle.kts).
+
+**Runtime owner:** Consumer applications. This library has no process or deployment lifecycle.
+
+## Development
+
+| Field | Value |
+| --- | --- |
+| Module Type | Gradle Java library published to GitHub Packages |
+| Runtime | None; consumed as a library |
+| Current PR Stack | No module-specific dependency order is recorded here. See the [open repository pull requests](https://github.com/TavallStudios/tavall-custom-enum-java/pulls). |
+| Development Guide | This README, [Build](#build), and [staging guidance](.github/TAVALL_STAGING.md) |
+| Check | `./gradlew --no-daemon clean check` |
+
 ## Usage
 
 Define the enum family in the consuming project:
