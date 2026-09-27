@@ -168,3 +168,8 @@ The project targets Java 25. CI installs Gradle 9.1 and executes:
 ```text
 gradle --no-daemon clean check
 ```
+
+---
+
+Notion: NOT_APPLICABLE
+Updated: 2026-09-27 02:32 PM PDT · PR: [#9](https://github.com/TavallStudios/tavall-custom-enum-java/pull/9)
