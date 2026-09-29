@@ -12,6 +12,10 @@ build:
 resources:
   mode: SYSTEM
 
+artifacts:
+  - name: tavall-custom-enum-java
+    path: build/tavall-ci-artifacts/tavall-custom-enum-java.jar
+
 requiredChecks:
   - quality
 
@@ -22,3 +26,4 @@ checks:
       - "clean"
       - "check"
       - "assemble"
+      - tavallCiArtifact
